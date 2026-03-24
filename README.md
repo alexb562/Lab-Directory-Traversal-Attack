@@ -1,1 +1,1 @@
-# Lab---Directory-Traversal-Attack
+# Lab-Directory-Traversal-Attack
