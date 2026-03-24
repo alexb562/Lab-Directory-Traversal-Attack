@@ -12,40 +12,42 @@ The pentester was given permission to access to the web server machine running U
 
 - They started with the /webdav directory and input that url into their browser, which returned the following:
 
+<img width="1005" height="387" alt="webdav" src="https://github.com/user-attachments/assets/12fd76b7-179e-4621-9930-1660c22c63a0" />
 
-[Alt text](webdav.png)
 
 - Review of the documents revealed no relevant information for exploitation. However, they followed the link to the parent directory (was also be able to be accessed by using the standard directory traversal technique of adding ../) and were taken to what appeared to be the root document:
 
-[Alt text](parent.png)
+<img width="563" height="403" alt="parent" src="https://github.com/user-attachments/assets/1bdd1488-acc3-4328-9adb-550d2df5a6fb" />
 
 - Knowing that a portal that has something to do with admin could be useful, they followed the link to a login page to the admin portal where they were able to enter simply by entering the username of bee (no password):
 
-[Alt text](php.png)
+<img width="1128" height="439" alt="php" src="https://github.com/user-attachments/assets/f5a34102-dea5-4812-bfa6-053497a9ae6b" />
+
 
 - However, it appears like there are no credentials here to exploit (they checked the databases with a special focus on user_privileges), so the pentester went back to look at other directories. The tables also did not reveal any sensitive information.
 They then went back to the root document and went to the evil directory, which revealed many promising documents here:
 
-[Alt text](evil.png)
+<img width="662" height="613" alt="evil" src="https://github.com/user-attachments/assets/d945198a-ab04-4ec3-ad48-7dfc95e81b5c" />
+
 - Upon looking through some of the documents, the pentester found this document labeled ssrf-3.txt. 
 
-[Alt text](ssrf.png)
+<img width="1092" height="283" alt="ssrf" src="https://github.com/user-attachments/assets/ef849d31-a6f8-406e-bc4e-eaa33e9a94bb" />
 
 - Upon analysis the pentester realized that there are several potential entry points to continue to traverse directories further up the chain. They started with the link that traversed to bWAPP/robots.txt, which resulted in the following page:
 
-[Alt text](portal.png)
+<img width="1352" height="581" alt="portal" src="https://github.com/user-attachments/assets/ab430727-42cc-422c-8d4f-984d9a3b7628" />
 
 - The pentester noted that admin credentials were listed, presenting a critical vulnerability if malicious actors were to follow the same path. They confirmed that these credentials were valid to log in. They then went back to the ssrf-3.txt document to attempt to traverse the second url listed, which ends in the directory passwords/heroes.xml, seeming to be a high value document. They found the following:
 
-[Alt text](xml.png)
+<img width="475" height="594" alt="xml" src="https://github.com/user-attachments/assets/554f5b59-d694-4740-9da9-b4138108d513" />
 
 - Jumping back one directory to just /passwords, the tester found this, which leads to two other potentially valuable configuration files:
 
-[Alt text](passwords.png)
+<img width="1003" height="299" alt="passwords" src="https://github.com/user-attachments/assets/939f51da-f61c-4eb7-9f9c-748dcd0e8bb3" />
 
 - Upon review of the web.config.bak file, the tester was able to find what appeared to be the login for the bWAPP database as wolverine/Log@N, demonstrating weak credentials and the ability to access the wider database.
 
-[Alt text](database.png)
+<img width="1003" height="400" alt="database" src="https://github.com/user-attachments/assets/d6006cc0-835a-4719-950d-0717e71e0e07" />
 
 
 ## Recommendations
