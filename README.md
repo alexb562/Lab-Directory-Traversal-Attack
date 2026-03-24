@@ -8,7 +8,7 @@ The pentester was given permission to access to the web server machine running U
 
 - They first used gobuster to get a sense of directories that would be available to traverse. Using the command  gobuster dir -u http://192.168.1.48 -w /home/kali/SecLists/Discovery/Web-Content/big.txt -t 50 the pentester was able to scan the IP of the server machine, and using a prewritten list of many common directory names (found in big.txt) the search was able to return some potential endpoints to traverse.
 
-[Alt text](gobuster.png)
+[Alt text](./gobuster.png)
 
 - They started with the /webdav directory and input that url into their browser, which returned the following:
 
