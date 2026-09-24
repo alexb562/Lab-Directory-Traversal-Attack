@@ -1,67 +1,226 @@
-# Lab-Directory-Traversal-Attack
+# bWAPP Directory Exposure & Sensitive Credential Disclosure Lab
+
 ## Background
-The web development team at a small ecommerce company bwapp.com has experienced several breaches with their web application in the past year, specifically involving injection attacks and directory traversals. They decided to contract Madrid Pentesting to run their first web application pen test to both remediate and secure their systems for the future, with a focus on securing credentials of users and admins. 
+
+This project was conducted in an authorized lab environment using bWAPP, an intentionally vulnerable web application designed for security testing and education.
+
+For the purposes of the scenario, the web development team of a small e-commerce company had experienced several security incidents involving its web application, including suspected injection and directory traversal attacks. The company contracted a penetration testing team to assess the application, identify additional vulnerabilities, and recommend remediation measures, with particular attention given to protecting user and administrative credentials.
+
 ## Scope
-The pentester was given permission to access to the web server machine running Ubuntu Linux. They used a virtual Kali box on VirtualBox to attack. The tester used the IP of the web server machine (192.168.1.48) and permission was also given to access the server using any admin credentials if found. 
+
+The assessment was performed against an Ubuntu Linux web server hosting the bWAPP application at `192.168.1.48`. Testing was conducted from a Kali Linux virtual machine running in VirtualBox.
+
+The tester was authorized to enumerate the web application, investigate accessible directories and files, test for directory traversal and related vulnerabilities, and validate any administrative credentials discovered during the assessment.
+
+Testing was limited to the designated lab server and was performed within an isolated and authorized environment.
+
+## Tools and Technologies
+
+- Kali Linux
+- Ubuntu Linux
+- bWAPP
+- Gobuster
+- SecLists
+- phpMyAdmin
+- VirtualBox
+
 ## Findings
-- Upon reviewing the logs that the web app team provided them, the pentester suspected that they were victims of a directory traversal attack. They noticed that the logs mentioned jumps of directories (which are injected into the url and represented by ../../../ which is the Linux command to move up directories) and it seemed as though the attacker was able to get at sensitive data. The pentester wanted to test what architecture was available from directory traversals and if there could be more vulnerabilities. 
 
-- They first used gobuster to get a sense of directories that would be available to traverse. Using the command  gobuster dir -u http://192.168.1.48 -w /home/kali/SecLists/Discovery/Web-Content/big.txt -t 50 the pentester was able to scan the IP of the server machine, and using a prewritten list of many common directory names (found in big.txt) the search was able to return some potential endpoints to traverse.
+### Initial Log Review
 
-<img width="827" height="529" alt="gobuster" src="https://github.com/user-attachments/assets/42acd0d3-e183-4658-9bfb-0eb45dd840ea" />
+* Upon reviewing the logs provided by the web application team, the pentester identified activity consistent with a possible directory traversal attack. Several requests contained repeated parent-directory references such as `../../../`, which can be used to reference locations higher in a directory structure when an application improperly handles user-controlled file paths.
 
-- They started with the /webdav directory and input that url into their browser, which returned the following:
+* The logs suggested that an attacker may have attempted to access files outside the application's intended directory. Based on these findings, the pentester decided to investigate the application's exposed directory structure and determine whether additional files or sensitive information could be accessed.
 
-<img width="1005" height="387" alt="webdav" src="https://github.com/user-attachments/assets/12fd76b7-179e-4621-9930-1660c22c63a0" />
+### Web Directory Enumeration
 
+* The pentester first used Gobuster to enumerate directories and files exposed by the web server. The goal was to identify potentially interesting web paths that could be investigated further for misconfigurations, sensitive files, or other vulnerabilities.
 
-- Review of the documents revealed no relevant information for exploitation. However, they followed the link to the parent directory (was also be able to be accessed by using the standard directory traversal technique of adding ../) and were taken to what appeared to be the root document:
+* The following command was used:
 
-<img width="563" height="403" alt="parent" src="https://github.com/user-attachments/assets/1bdd1488-acc3-4328-9adb-550d2df5a6fb" />
+```bash
+gobuster dir -u http://192.168.1.48 -w /home/kali/SecLists/Discovery/Web-Content/big.txt -t 50
+```
 
-- Knowing that a portal that has something to do with admin could be useful, they followed the link to a login page to the admin portal where they were able to enter simply by entering the username of bee (no password):
+* This command instructed Gobuster to scan the target web server using the `big.txt` wordlist from SecLists while running 50 concurrent threads. The scan returned several accessible endpoints that warranted further investigation.
 
-<img width="1128" height="439" alt="php" src="https://github.com/user-attachments/assets/f5a34102-dea5-4812-bfa6-053497a9ae6b" />
+<img width="827" height="529" alt="Gobuster directory enumeration results" src="https://github.com/user-attachments/assets/42acd0d3-e183-4658-9bfb-0eb45dd840ea" />
 
+### Exposed WebDAV Directory Listing
 
-- However, it appears like there are no credentials here to exploit (they checked the databases with a special focus on user_privileges), so the pentester went back to look at other directories. The tables also did not reveal any sensitive information.
-They then went back to the root document and went to the evil directory, which revealed many promising documents here:
+* One of the endpoints identified during enumeration was `/webdav`. The pentester navigated to this path in the browser and found that directory listing was enabled, allowing the contents of the directory to be viewed directly.
 
-<img width="662" height="613" alt="evil" src="https://github.com/user-attachments/assets/d945198a-ab04-4ec3-ad48-7dfc95e81b5c" />
+<img width="1005" height="387" alt="WebDAV directory listing" src="https://github.com/user-attachments/assets/12fd76b7-179e-4621-9930-1660c22c63a0" />
 
-- Upon looking through some of the documents, the pentester found this document labeled ssrf-3.txt. 
+* The exposed files were reviewed for potentially sensitive information. No immediately useful credentials or configuration data were identified within the documents shown in this directory.
 
-<img width="1092" height="283" alt="ssrf" src="https://github.com/user-attachments/assets/ef849d31-a6f8-406e-bc4e-eaa33e9a94bb" />
+* The directory listing also exposed a parent-directory link. Following this link allowed the tester to navigate upward within the web-accessible directory structure and continue enumerating additional content.
 
-- Upon analysis the pentester realized that there are several potential entry points to continue to traverse directories further up the chain. They started with the link that traversed to bWAPP/robots.txt, which resulted in the following page:
+<img width="563" height="403" alt="Parent directory listing" src="https://github.com/user-attachments/assets/1bdd1488-acc3-4328-9adb-550d2df5a6fb" />
 
-<img width="1352" height="581" alt="portal" src="https://github.com/user-attachments/assets/ab430727-42cc-422c-8d4f-984d9a3b7628" />
+### Insecure phpMyAdmin Authentication
 
-- The pentester noted that admin credentials were listed, presenting a critical vulnerability if malicious actors were to follow the same path. They confirmed that these credentials were valid to log in. They then went back to the ssrf-3.txt document to attempt to traverse the second url listed, which ends in the directory passwords/heroes.xml, seeming to be a high value document. They found the following:
+* While reviewing the exposed directory structure, the pentester identified a link leading to a phpMyAdmin login portal. Because administrative interfaces are high-value targets, the tester attempted to determine whether the portal was properly protected.
 
-<img width="475" height="594" alt="xml" src="https://github.com/user-attachments/assets/554f5b59-d694-4740-9da9-b4138108d513" />
+* The tester entered the username `bee` without providing a password and was granted access to the phpMyAdmin interface. This demonstrated that the account could authenticate without a password, indicating an insecure authentication configuration.
 
-- Jumping back one directory to just /passwords, the tester found this, which leads to two other potentially valuable configuration files:
+<img width="1128" height="439" alt="phpMyAdmin access using the bee account without a password" src="https://github.com/user-attachments/assets/f5a34102-dea5-4812-bfa6-053497a9ae6b" />
 
-<img width="1003" height="299" alt="passwords" src="https://github.com/user-attachments/assets/939f51da-f61c-4eb7-9f9c-748dcd0e8bb3" />
+* Once authenticated, the tester reviewed the accessible databases and tables, with particular attention given to `user_privileges`, to determine whether additional credentials or sensitive information were exposed.
 
-- Upon review of the web.config.bak file, the tester was able to find what appeared to be the login for the bWAPP database as wolverine/Log@N, demonstrating weak credentials and the ability to access the wider database.
+* No immediately useful credentials were identified within the accessible database content. However, unauthorized access to a database administration interface exposed information about the application's database structure that could assist an attacker in further reconnaissance or exploitation.
 
-<img width="1003" height="400" alt="database" src="https://github.com/user-attachments/assets/d6006cc0-835a-4719-950d-0717e71e0e07" />
+### Exposed Internal Paths
+
+* The tester then returned to the exposed web directory structure and investigated the `/evil` directory, which contained several potentially interesting files.
+
+<img width="662" height="613" alt="Contents of the exposed evil directory" src="https://github.com/user-attachments/assets/d945198a-ab04-4ec3-ad48-7dfc95e81b5c" />
+
+* During this review, the pentester identified a file named `ssrf-3.txt`.
+
+<img width="1092" height="283" alt="Contents of ssrf-3.txt" src="https://github.com/user-attachments/assets/ef849d31-a6f8-406e-bc4e-eaa33e9a94bb" />
+
+* The contents of `ssrf-3.txt` exposed several internal file paths that warranted further investigation.
+
+* Although the filename referenced SSRF, the evidence observed during this portion of the assessment primarily demonstrated sensitive path disclosure rather than confirming a server-side request forgery vulnerability.
+
+### Administrative Credentials Exposed in `robots.txt`
+
+* The tester followed the first exposed path, which referenced `bWAPP/robots.txt`. Accessing the file revealed sensitive information that included administrative credentials.
+
+<img width="1352" height="581" alt="Sensitive information exposed through robots.txt" src="https://github.com/user-attachments/assets/ab430727-42cc-422c-8d4f-984d9a3b7628" />
+
+* The pentester confirmed that the exposed administrative credentials were valid by successfully authenticating with them.
+
+* This demonstrated that valid administrative credentials were stored in a publicly accessible web file, creating a significant risk of unauthorized administrative access if discovered by a malicious actor.
+
+### Sensitive Credential File Exposure
+
+* The tester then returned to `ssrf-3.txt` and investigated another exposed path referencing `passwords/heroes.xml`.
+
+* The file was accessible and contained additional sensitive credential information.
+
+<img width="475" height="594" alt="Exposed heroes.xml credential file" src="https://github.com/user-attachments/assets/554f5b59-d694-4740-9da9-b4138108d513" />
+
+* After identifying the exposed `heroes.xml` file, the tester navigated to the parent `/passwords` directory.
+
+* Directory listing was enabled, revealing additional files that appeared to contain configuration or credential-related information.
+
+<img width="1003" height="299" alt="Contents of the exposed passwords directory" src="https://github.com/user-attachments/assets/939f51da-f61c-4eb7-9f9c-748dcd0e8bb3" />
+
+### Database Credentials Exposed in Backup Configuration File
+
+* One of the exposed files, `web.config.bak`, contained database authentication information associated with the bWAPP application.
+
+* The backup configuration file stored a database username and password in plaintext, allowing anyone with access to the file to obtain the credentials.
+
+<img width="1003" height="400" alt="Database credentials exposed in web.config.bak" src="https://github.com/user-attachments/assets/d6006cc0-835a-4719-950d-0717e71e0e07" />
+
+* The exposure of a backup configuration file containing plaintext database credentials represents a serious security weakness.
+
+* An attacker who obtained valid database credentials could attempt to authenticate directly to the database. The resulting impact would depend on the permissions assigned to the exposed database account and whether the database service was reachable from the attacker's location.
+
+### Findings Summary
+
+Taken together, the assessment identified several weaknesses that significantly increased the application's attack surface:
+
+* Publicly accessible directory listings.
+* Exposure of internal application paths.
+* Passwordless access to a phpMyAdmin account.
+* Administrative credentials stored in a publicly accessible file.
+* Sensitive credential files exposed through the web server.
+* A backup configuration file containing plaintext database credentials.
+
+These weaknesses could provide an attacker with information and credentials that could be used to obtain additional unauthorized access to the application or its supporting infrastructure.
 
 
 ## Recommendations
-### PHPmyadmin brute force
-The tester was able to reach the root document and access the phpmyadmin portal. Upon landing there, they only had to enter a username and click enter, to which they were entered in as a low-privilege user. Although they did not enter with any credentials, they could easily enumerate by reviewing the structure and architecture of the portal, export certain data types, and escalate privileges. This can lead to full-scale server compromise if privileges are escalated. They could also potentially lauch D/Dos attacks which could crash the server. 
-### Robots.txt and ssrf-4.txt admin credentials traversal
-Upon traversing through the numerous directories, the tester was able to land on the robots.txt path which exposed admin credentials. Access to these privileges can lead to a wide variety of serious consequences, including exfiltration of sensitive data, installation of malware backdoors, financial losses, and reputational damage. Further, they were able to access the aforementioned ssrf file which held usernames and passwords of users. 
-### web.config.bak database exposed credentials
-Navigating through the two listed configuration passwords in the /passwords directory, the tester found the login information to the wider Bwapp database. Allowing an attacker these credentials presents many of the same threats that have been listed, where both user and admin credentials can be exfiltrated. 
-## Solutions
-- One of the main issues of this test surrounded directory traversal, in which the tester was able to move quite freely all the way to the root document. Input validation and filtering should be implemented using tools such as OWASP Modsecurity such that attackers cannot inject any commands into the URL header. This can be done specifically with Regex filtering (common injection logic is filtered out) and parameterized queries (input is not treated as SQL input but rather just plain data). The organization should also obscure and sanitize the URL so that any injection points are not shown (this can be done with tools such as ModRewrite from Apache). Overall, this will limit the movement the tester was able to gain by freely traversing through directories and files.
 
-- Another serious issue was the tester gaining access to the PHP admin panel through brute force without a password. This presents serious risks to users’ and employees’ data. A strong password policy should be enforced across both employees and users (the NIST framework is a good place to look for building strong credential culture and can be found at https://pages.nist.gov/800-63-4/sp800-63b/passwords/). Further, multi-factor authentication (MFA), which requires another form of authentication alongside a password, drastically lowers the risk of brute force access. 
+### 1. Disable Unnecessary Directory Listing
 
-- Another theme discussed thus far is cryptographic failure, meaning sensitive information was exposed easily. Encryption should be introduced across sensitive data (usernames, passwords, admin credentials, and any other PII) and can be done with hashing algorithms such as Argon2 and Bcrypt. Further, secure key management away from sensitive data should be implemented such that the attackers cannot gain the keys and break the encryption. Services that provide key management include AWS KMS and Azure KMS. 
+Directory listing should be disabled on web-accessible directories unless it is explicitly required for application functionality. Exposed directory indexes allowed the tester to browse files and identify additional sensitive resources that would otherwise have been more difficult to discover.
 
-- Overall, a strong focus on credential culture (including password policies and MFA), input sanitization/validation, and encryption will ensure Bwapp’s security strength will increase into the future. 
+The web server should be configured to prevent automatic directory indexing, and sensitive directories should not be accessible directly through the web root.
+
+### 2. Restrict Access to Administrative Interfaces
+
+The phpMyAdmin interface should not permit authentication without a password. All administrative accounts should require strong authentication, and unused or unnecessary accounts should be disabled.
+
+Access to phpMyAdmin and similar administrative interfaces should also be restricted where possible. This could include limiting access to trusted management networks, requiring VPN access, or applying IP-based restrictions.
+
+Multi-factor authentication should be enabled for administrative access when supported.
+
+### 3. Remove Credentials From Publicly Accessible Files
+
+Administrative credentials should never be stored in files that are accessible through the web server, including files such as `robots.txt`.
+
+The exposed credentials should be considered compromised and immediately rotated. The organization should also review other publicly accessible files to determine whether additional passwords, API keys, database credentials, or other secrets are present.
+
+Files intended to provide instructions to search engines should not be treated as a security mechanism. Information listed in `robots.txt` can be viewed by anyone who requests the file.
+
+### 4. Protect Sensitive Application Files
+
+Sensitive files such as `heroes.xml`, configuration files, backup files, and credential-related documents should not be stored in publicly accessible directories.
+
+Where these files are required by the application, access should be restricted using appropriate filesystem permissions and web server configuration. Files containing sensitive information should be stored outside of the application's public web root whenever possible.
+
+### 5. Remove Backup Configuration Files From the Web Root
+
+Backup files such as `web.config.bak` should not be deployed to publicly accessible directories.
+
+Backup configuration files can contain the same secrets and settings as production configuration files and may be served as plain text instead of being processed by the application.
+
+The exposed database credentials should be rotated, and the database account should follow the principle of least privilege so that it has access only to the resources required by the application.
+
+### 6. Implement Secure Secrets Management
+
+Database passwords, API keys, and other application secrets should not be hard-coded into publicly accessible configuration files.
+
+Secrets should instead be stored using an appropriate secrets-management mechanism or protected configuration system. Access to those secrets should be limited to the application and administrators who require them.
+
+Credential rotation procedures should also be established so that exposed or outdated secrets can be replaced quickly.
+
+### 7. Strengthen Password and Authentication Policies
+
+Administrative and user accounts should follow a strong credential policy. Passwordless administrative access should not be permitted.
+
+Passwords should be stored using a dedicated password-hashing algorithm such as Argon2id or bcrypt rather than plaintext or reversible encryption.
+
+Multi-factor authentication should be implemented for administrative accounts where possible to reduce the impact of stolen or guessed passwords.
+
+### 8. Prevent Path Traversal
+
+Applications should avoid using user-controlled input directly when constructing filesystem paths.
+
+Where file access based on user input is required, the application should use an allowlist of permitted files or map user-supplied identifiers to predetermined server-side resources.
+
+Paths should be normalized and validated before use, and the application should verify that the requested resource remains within the intended directory.
+
+Filesystem permissions should also follow the principle of least privilege so that the web application cannot access files that are not required for normal operation.
+
+A web application firewall such as ModSecurity may provide additional protection against common traversal attempts, but it should be treated as a defense-in-depth control rather than a replacement for secure application logic.
+
+## Overall Remediation Priorities
+
+The highest-priority remediation actions should include:
+
+1. Rotating all credentials exposed during the assessment.
+2. Removing sensitive and backup files from publicly accessible directories.
+3. Correcting the passwordless phpMyAdmin authentication configuration.
+4. Disabling unnecessary directory listing.
+5. Restricting access to administrative interfaces.
+6. Implementing secure secrets management and least-privilege access controls.
+7. Reviewing application file-handling logic for path traversal vulnerabilities.
+
+Together, these changes would significantly reduce the likelihood that exposed files, weak authentication controls, or improperly handled file paths could be used to gain unauthorized access to the application or its supporting infrastructure.
+
+## Skills Demonstrated
+
+- Web content and directory enumeration
+- Analysis of exposed web resources
+- Identification of insecure authentication
+- Sensitive credential discovery
+- Web server misconfiguration analysis
+- Security impact assessment
+- Remediation planning
+- Technical penetration-testing documentation
